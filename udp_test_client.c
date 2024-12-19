@@ -47,13 +47,12 @@ int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest
       while(time(NULL) < (start_time + delay + 2)) {
          struct sockaddr_in6 src;
          int srclen;
-         
+
          // Response should happen delay seconds later
          status = recvfrom(s_udp, &rx_packet, sizeof(rx_packet), 0, 
                (struct sockaddr *) &src, &srclen);
          
-         if(status == sizeof(rx_packet)) {
-            printf("P\n");
+         if(status > 0) {
             if(initial_packet) {
                initial_packet = 0;
             } else {
@@ -64,36 +63,33 @@ int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest
             }
          }
 
-        uint8_t vec_buf[4096];
-        uint8_t ancillary_buf[4096];
-        struct iovec iov = { vec_buf, sizeof(vec_buf) };
-        struct sockaddr_storage remote;
+         uint8_t vec_buf[4096];
+         uint8_t ancillary_buf[4096];
+         struct iovec iov = { vec_buf, sizeof(vec_buf) };
+         struct sockaddr_storage remote;
 
-        struct msghdr msg = {
-            .msg_name = (struct sockaddr *) dest,
+         struct msghdr msg = {
+            .msg_name = (struct sockaddr *) &remote,
             .msg_namelen = sizeof(remote),
             .msg_iov = &iov,
             .msg_iovlen = 1,
             .msg_flags = 0,
             .msg_control = ancillary_buf,
             .msg_controllen = sizeof(ancillary_buf)
-        };
+         };
 
          status = recvmsg(s_udp, &msg, MSG_DONTWAIT | MSG_ERRQUEUE);
          if(status > 0) {
             struct cmsghdr *cmsg;
+
             for(cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
                if(cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_RECVERR)
                {
                   printf("E\n");
                   return 0;
                }
-               else {
-                  printf("UNKNOWN\n");
-               }
             }
          }
-
          usleep(100000);
       }
 
@@ -101,7 +97,7 @@ int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest
       printf("X");
       fflush(stdout);
 
-	}
+   }
    printf("\n");
 
    return 0;
