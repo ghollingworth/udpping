@@ -44,7 +44,7 @@ int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest
       // delay seconds
       int initial_packet = 1;
 
-      while(time(NULL) < (start_time + delay + 2)) {
+      while(time(NULL) < (start_time + delay + 3)) {
          struct sockaddr_in6 src;
          int srclen;
 
@@ -53,7 +53,8 @@ int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest
                (struct sockaddr *) &src, &srclen);
          
          if(status > 0) {
-            if(initial_packet) {
+            printf("P%d", rx_packet.delay); fflush(stdout);
+            if(initial_packet && rx_packet.delay == delay) {
                initial_packet = 0;
             } else {
                char s[256] = {0,};
@@ -63,6 +64,7 @@ int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest
             }
          }
 
+         #if 0
          uint8_t vec_buf[4096];
          uint8_t ancillary_buf[4096];
          struct iovec iov = { vec_buf, sizeof(vec_buf) };
@@ -90,6 +92,8 @@ int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest
                }
             }
          }
+         #endif
+
          usleep(100000);
       }
 
@@ -161,7 +165,7 @@ int main(int argc, char *argv[])
 
    int max_delay = 0;
    // double the delay each time to find the fail point start with 1<<6 = 32 seconds
-   int delay_log2 = 4;
+   int delay_log2 = 1;
    do {
       if(ping_test(1 << delay_log2, REPEAT_TIMES, s_udp, &sin6_dest, sin6len) == 1) {
          max_delay = 1 << delay_log2;
@@ -184,9 +188,9 @@ int main(int argc, char *argv[])
       }
       delay_log2--;
    }
-   
-   printf("Maximum server delay is %d seconds\n", max_delay);
 
+   printf("Maximum server delay is %d seconds\n", max_delay);
+ 
    shutdown(s_udp, 2);
    close(s_udp);
    return 0;
