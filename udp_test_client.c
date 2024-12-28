@@ -13,16 +13,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include "udpping.h"
 
 #define REPEAT_TIMES 2
    
 int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest, int addrlen)
 {
-   struct s_packet {
-      int delay;
-      int uuid[4];
-   } rx_packet = { 
-         .delay = delay,
+   struct s_ping_packet packet = { 
+         .type = PT_PING_REQUEST,
+         .info = { .pt_ping = { .delay = delay } },
          .uuid = 0x12345678 
       };
 
@@ -33,7 +32,7 @@ int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest
    // Repeat on failure in case a packet got lost
    for(int t = 0; t < repeat_times; t++) {
       // Send ping request packet to server
-      status = sendto(s_udp, &rx_packet, sizeof(rx_packet), 0, (struct sockaddr *) dest, addrlen);
+      status = sendto(s_udp, &packet, sizeof(packet), 0, (struct sockaddr *) dest, addrlen);
       if(status < 0) {
                printf("Failed with error %d\n", status);
                exit(0);
@@ -49,12 +48,13 @@ int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest
          int srclen;
 
          // Response should happen delay seconds later
-         status = recvfrom(s_udp, &rx_packet, sizeof(rx_packet), 0, 
+         status = recvfrom(s_udp, &packet, sizeof(packet), 0, 
                (struct sockaddr *) &src, &srclen);
          
-         if(status > 0) {
-            printf("P%d", rx_packet.delay); fflush(stdout);
-            if(initial_packet && rx_packet.delay == delay) {
+         if(status > 0 && packet.type == PT_PING_REPLY) {
+            printf("P%d", packet.info.pt_ping.delay);
+            fflush(stdout);
+            if(initial_packet && packet.info.pt_ping.delay == delay) {
                initial_packet = 0;
             } else {
                char s[256] = {0,};
@@ -83,7 +83,8 @@ int ping_test(int delay, int repeat_times, int s_udp, struct sockaddr_in6 * dest
          status = recvmsg(s_udp, &msg, MSG_DONTWAIT | MSG_ERRQUEUE);
          if(status > 0) {
             struct cmsghdr *cmsg;
-
+            printf("M");
+            fflush(stdout);
             for(cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
                if(cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_RECVERR)
                {
@@ -118,7 +119,7 @@ int main(int argc, char *argv[])
    s_udp = socket(AF_INET6, SOCK_DGRAM, 0);
 
    if(fcntl(s_udp, F_SETFL, fcntl(s_udp, F_GETFL) | O_NONBLOCK) < 0) {
-      printf("Failed to 1set non-blocking on socket\n");
+      printf("Failed to set non-blocking on socket\n");
       exit(-1);
    }
 
